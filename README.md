@@ -6,7 +6,7 @@ Label‑Aware Medication Reminder & Drug Information Assistant
 
 Patients often forget medication schedules and lack clear, reliable information about drug dosage and side effects. This project builds an AI-powered medication assistant using LLMs with RAG to retrieve verified drug information and generate structured medication reminder plans, improving safety and adherence.
 
-*Problem Description*
+*Problem Description:*
 
 This project is an AI-driven chatbot that uses LLMs + Retrieval-Augmented Generation (RAG) to:
 
