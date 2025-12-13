@@ -159,15 +159,3 @@ Delivered as:
 -JSON schedule
 
 -Optional citations
-
-*Future Enhancements*
-
-OCR prescription scan → auto-generate reminders
-
-Drug–drug interaction warnings
-
-Multi-language support
-
-Mobile app with push notifications
-
-Voice chatbot (Siri/Google Assistant integration)
