@@ -159,3 +159,56 @@ Delivered as:
 -JSON schedule
 
 -Optional citations
+**project folder structure**
+
+m-reminder/
+│
+├── api/
+
+│   ├── _init_.py
+
+│   ├── fetch_label.py
+
+│   ├── rag.py
+
+│   ├── reminder.py
+
+│   ├── main.py
+
+│
+├── .env
+
+├── requirements.txt
+
+└── README.md
+
+**fetch_label.py**:
+
+Fetches official FDA drug label information from the openFDA API.
+
+Extracts verified sections like dosage, warnings, and side effects.
+
+Acts as the trusted medical data source for the entire project.
+**rag.py**:
+
+Performs semantic search over FDA drug label text using embeddings.
+
+Identifies the most relevant sections based on the user’s question.
+
+Ensures the LLM answers using only relevant, grounded information.
+
+**main.py**:
+
+Serves as the entry point and user interface of the application.
+
+Collects user input and coordinates FDA retrieval, RAG, and AI responses.
+
+Displays human-readable answers and reminder confirmations to the user.
+
+**reminder.py**:
+
+Creates a structured medication reminder plan from user inputs.
+
+Handles dose, frequency, and reminder timing logic.
+
+Separates reminder functionality from AI and data-retrieval logic.
