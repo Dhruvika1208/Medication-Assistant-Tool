@@ -1,30 +1,43 @@
 import requests
 
 def fetch_drug_label(drug_name: str):
-    url = f"https://api.fda.gov/drug/label.json?search=openfda.brand_name:{drug_name}&limit=1"
+    drug_name = drug_name.lower().strip()
+
+    # Try fuzzy search via openFDA directly
+    url = f"https://api.fda.gov/drug/label.json?search=openfda.brand_name:{drug_name}+openfda.generic_name:{drug_name}&limit=1"
 
     try:
-        data = requests.get(url).json()
-        results = data.get("results", [])
-        if not results:
-            return None
-        
-        result = results[0]
+        response = requests.get(url).json()
 
+        # If nothing found
+        if "results" not in response:
+            return None
+
+        data = response["results"][0]
+
+        # Combine all useful text sections
         sections = [
             "indications_and_usage",
             "dosage_and_administration",
             "warnings",
-            "adverse_reactions"
+            "warnings_and_cautions",
+            "adverse_reactions",
+            "contraindications",
+            "drug_interactions",
+            "pregnancy",
+            "breastfeeding",
+            "overdosage",
+            "clinical_pharmacology",
+            "how_supplied"
         ]
 
-        label_text = ""
+        all_text = []
 
-        for sec in sections:
-            if sec in result:
-                label_text += f"\n\n{sec.upper()}:\n{result[sec][0]}"
+        for section in sections:
+            if section in data:
+                all_text.append("\n".join(data[section]))
 
-        return label_text.strip()
+        return "\n\n".join(all_text)
 
-    except:
+    except Exception:
         return None
