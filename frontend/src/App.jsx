@@ -1,3 +1,52 @@
+import { useState, useEffect, useRef } from "react";
+import axios from "axios";
+import { 
+  Activity, 
+  Bell, 
+  Calendar as CalendarIcon, 
+  ChevronDown, 
+  Check, 
+  Clock, 
+  ShieldAlert, 
+  ShieldCheck, 
+  Trash2, 
+  Edit, 
+  Plus, 
+  LogOut, 
+  Sun, 
+  Moon, 
+  Lock, 
+  Mail, 
+  User, 
+  Info, 
+  ArrowRight, 
+  CornerDownRight, 
+  Menu, 
+  X, 
+  ArrowUpRight, 
+  HelpCircle, 
+  Eye, 
+  EyeOff, 
+  CheckCircle2, 
+  AlertTriangle, 
+  UserCheck, 
+  Compass, 
+  LayoutDashboard,
+  MessageSquare,
+  Bookmark
+} from "lucide-react";
+import "./App.css";
+
+const API_BASE = "http://localhost:8000";
+
+const SUGGESTED_QUESTIONS = [
+  { drug: "Amoxicillin", question: "What are the common side effects of Amoxicillin?" },
+  { drug: "Metformin", question: "What warnings are associated with Metformin?" },
+  { drug: "Ibuprofen", question: "What are the contraindications for Ibuprofen?" },
+  { drug: "Acetaminophen", question: "How should Acetaminophen be stored?" },
+  { drug: "Simvastatin", question: "What drug interactions are listed for Simvastatin?" }
+];
+
 // Custom MediRAG minimalist capsule + AI spark brand mark
 const MediRagLogo = ({ size = 26, className = "" }) => (
   <svg 

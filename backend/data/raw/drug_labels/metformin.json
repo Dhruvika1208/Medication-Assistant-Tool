@@ -3,11 +3,11 @@
     "disclaimer": "Do not rely on openFDA to make decisions regarding medical care. While we make every effort to ensure that data is accurate, you should assume all results are unvalidated. We may limit or otherwise restrict your access to the API in line with our Terms of Service.",
     "terms": "https://open.fda.gov/terms/",
     "license": "https://open.fda.gov/license/",
-    "last_updated": "2026-07-18",
+    "last_updated": "2026-07-21",
     "results": {
       "skip": 0,
       "limit": 1,
-      "total": 386
+      "total": 387
     }
   },
   "results": [
@@ -153,8 +153,8 @@
           "ORAL"
         ],
         "substance_name": [
-          "METFORMIN HYDROCHLORIDE",
-          "SITAGLIPTIN"
+          "SITAGLIPTIN",
+          "METFORMIN HYDROCHLORIDE"
         ],
         "rxcui": [
           "861769",
@@ -188,8 +188,8 @@
           "Dipeptidyl Peptidase 4 Inhibitors [MoA]"
         ],
         "unii": [
-          "QFP0P1DV7Z",
-          "786Z46389E"
+          "786Z46389E",
+          "QFP0P1DV7Z"
         ]
       }
     }

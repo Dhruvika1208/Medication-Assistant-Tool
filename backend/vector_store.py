@@ -61,16 +61,15 @@ def search_similar_chunks(query: str, drug_name: Optional[str] = None, k: int = 
     """
     Performs semantic search in Chroma DB.
     Returns a list of dicts with 'doc' (Document) and 'score' (float).
-    Supports drug name normalization, metadata filtering, and automatic fallback search.
+    Supports drug name normalization, substring matching against indexed names, and fallback search.
     """
     db = get_vector_store()
+    all_indexed = get_indexed_drugs()
     
     # 1. Normalize and detect drug name
     target_drug = drug_name.strip() if drug_name and drug_name.strip() else None
     
-    # If no explicit drug_name provided, try detecting from indexed drugs in query string
     if not target_drug:
-        all_indexed = get_indexed_drugs()
         query_lower = query.lower()
         for d in all_indexed:
             if d.lower() in query_lower:
@@ -79,21 +78,26 @@ def search_similar_chunks(query: str, drug_name: Optional[str] = None, k: int = 
 
     results_with_scores = []
     
-    # 2. If target_drug is identified, attempt filtered search with normalized name variations
+    # 2. Match target_drug against all indexed drug names in ChromaDB (case-insensitive substring match)
     if target_drug:
-        name_variations = list(set([
-            target_drug,
-            target_drug.lower(),
-            target_drug.upper(),
-            target_drug.capitalize(),
-            target_drug.title()
-        ]))
+        target_lower = target_drug.lower()
+        matching_names = set()
+        
+        for d in all_indexed:
+            if target_lower in d.lower():
+                matching_names.add(d)
+                
+        # Also add common casing variations of target_drug
+        matching_names.add(target_drug)
+        matching_names.add(target_drug.lower())
+        matching_names.add(target_drug.upper())
+        matching_names.add(target_drug.title())
         
         # Build filter condition for ChromaDB
         filter_conditions = []
-        for var in name_variations:
-            filter_conditions.append({"drug_name": var})
-            filter_conditions.append({"generic_name": var})
+        for name in matching_names:
+            filter_conditions.append({"drug_name": name})
+            filter_conditions.append({"generic_name": name})
             
         search_filter = {"$or": filter_conditions} if len(filter_conditions) > 1 else filter_conditions[0]
         
@@ -102,23 +106,24 @@ def search_similar_chunks(query: str, drug_name: Optional[str] = None, k: int = 
             for doc, score in raw_results:
                 results_with_scores.append({"doc": doc, "score": float(score)})
         except Exception as e:
-            print(f"[VectorStore Warning] Filtered similarity search failed for '{target_drug}': {e}")
+            print(f"[VectorStore Warning] Substring filtered search failed for '{target_drug}': {e}")
             
-    # 3. Fallback: If no results found via filter (or no target drug), run unfiltered search
+    # 3. Fallback: If filtered search returned empty, perform unfiltered similarity search
     if not results_with_scores:
         augmented_query = f"{target_drug} {query}" if target_drug and target_drug.lower() not in query.lower() else query
         try:
             raw_results = db.similarity_search_with_score(augmented_query, k=k)
             for doc, score in raw_results:
-                # If target_drug was specified, verify chunk relevance
                 doc_drug = (doc.metadata.get("drug_name") or doc.metadata.get("generic_name") or "").lower()
+                doc_content = doc.page_content.lower()
                 if target_drug:
-                    if target_drug.lower() in doc_drug or target_drug.lower() in doc.page_content.lower():
+                    target_lower = target_drug.lower()
+                    if target_lower in doc_drug or target_lower in doc_content:
                         results_with_scores.append({"doc": doc, "score": float(score)})
                 else:
                     results_with_scores.append({"doc": doc, "score": float(score)})
         except Exception as e:
-            print(f"[VectorStore Error] Similarity search failed: {e}")
+            print(f"[VectorStore Error] Unfiltered fallback search failed: {e}")
 
     return results_with_scores
 
