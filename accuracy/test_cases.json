@@ -1,0 +1,17 @@
+[
+    {
+        "drug": "Ibuprofen",
+        "question": "What is the recommended dosage?",
+        "expected_keywords": ["200", "400", "pain", "fever"]
+    },
+    {
+        "drug": "Amoxicillin",
+        "question": "What are the side effects?",
+        "expected_keywords": ["diarrhea", "rash", "nausea"]
+    },
+    {
+        "drug": "Metformin",
+        "question": "What is it used for?",
+        "expected_keywords": ["diabetes", "blood sugar"]
+    }
+]

@@ -6,4 +6,9 @@ openai
 chromadb
 sentence-transformers
 sqlalchemy
+langchain
+langchain-community
+langchain-groq
+pydantic
+huggingface-hub
 pypdf
