@@ -175,6 +175,5 @@ python accuracy/evaluate_accuracy.py
 
 ---
 
-
 > This application provides medication information from FDA drug-label data for informational purposes only. It is not a substitute for professional medical advice, diagnosis, or treatment. Always consult a qualified healthcare provider for individualized medical guidance.
 
