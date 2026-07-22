@@ -173,4 +173,3 @@ python accuracy/evaluate_accuracy.py
 1. **Local Embeddings Load**: Downloading the `all-MiniLM-L6-v2` Sentence Transformer model requires an internet connection on the first execution. Subsequent executions run entirely offline.
 2. **Browser Push Limits**: Desktop notifications require the React application tab to remain open in the browser. If the tab or browser is closed, JavaScript timers stop, and alerts will not fire.
 
----
