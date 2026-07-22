@@ -1,4 +1,4 @@
-# MediRAG – AI-Powered Medication Information Assistant Using RAG
+
 
 MediRAG is a clinical-grade, full-stack Medication Information Assistant that leverages **Retrieval-Augmented Generation (RAG)** to provide source-grounded answers to queries about drug label information (such as dosage, warnings, side effects, contraindications, and storage). The application retrieves official, structured FDA drug-label data, stores vector embeddings locally in ChromaDB, and uses LangChain + Groq (Llama-3 model) to generate verified responses, ensuring patients and clinicians receive trustworthy answers with clickable source verification, avoiding AI hallucinations.
 
