@@ -2214,6 +2214,7 @@
   transition: var(--transition-smooth);
 }
 
+
 .btn-add-time-slot:hover {
   background: var(--brand-teal-light);
 }
@@ -2226,9 +2227,98 @@
   gap: 1rem;
 }
 
-/* 9. User Profile Page */
+/* 9. Formatted AI Answer & Medical Terms Styling */
+.formatted-answer-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+
+.formatted-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.3rem;
+}
+
+.formatted-heading.serious-heading {
+  color: var(--brand-coral);
+  border-bottom-color: rgba(244, 63, 94, 0.2);
+}
+
+.formatted-heading.warning-heading {
+  color: var(--brand-amber);
+  border-bottom-color: rgba(245, 158, 11, 0.2);
+}
+
+.formatted-heading.standard-heading {
+  color: var(--brand-teal);
+  border-bottom-color: rgba(13, 148, 136, 0.2);
+}
+
+.heading-icon {
+  flex-shrink: 0;
+}
+
+.formatted-answer-ul {
+  list-style: none;
+  padding-left: 0.25rem;
+  margin: 0.4rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.formatted-answer-li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+  color: var(--text-primary);
+}
+
+.bullet-dot {
+  color: var(--brand-teal);
+  font-weight: bold;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.formatted-answer-p {
+  margin: 0.2rem 0;
+  color: var(--text-primary);
+}
+
+.highlighted-term {
+  color: var(--brand-teal);
+  font-weight: 700;
+  background: var(--brand-teal-light);
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.25rem;
+}
+
+/* Custom MediRAG Logo SVG */
+.medirag-brand-logo {
+  vertical-align: middle;
+  filter: drop-shadow(0 0 6px rgba(13, 148, 136, 0.3));
+  transition: transform 0.2s ease;
+}
+
+.nav-brand:hover .medirag-brand-logo {
+  transform: rotate(-10deg) scale(1.08);
+}
+
+/* 10. User Profile & Preferences Cards */
 .profile-container {
-  max-width: 32rem;
+  max-width: 52rem;
   margin: 0 auto;
   width: 100%;
 }
@@ -2239,55 +2329,50 @@
   -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border-color);
   border-radius: 1.25rem;
-  padding: 2.5rem;
+  padding: 1.75rem;
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1rem;
+}
+
+.profile-header-card {
+  background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-secondary) 100%);
+  border-left: 4px solid var(--brand-teal);
 }
 
 .profile-avatar-large-container {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0.75rem;
-  text-align: center;
+  gap: 1.25rem;
 }
 
 .profile-avatar-large {
   background: linear-gradient(135deg, var(--brand-teal) 0%, var(--brand-aqua) 100%);
   color: white;
-  width: 5rem;
-  height: 5rem;
+  width: 4.5rem;
+  height: 4.5rem;
   border-radius: 50%;
   font-family: var(--font-heading);
-  font-size: 2.25rem;
+  font-size: 2rem;
   font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: var(--shadow-md);
-  border: 4px solid var(--bg-secondary);
-}
-
-.profile-email-label {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
-}
-
-.profile-form-section {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  border-top: 1px solid var(--border-color);
-  padding-top: 1.5rem;
+  border: 3px solid var(--bg-secondary);
 }
 
 .profile-section-title {
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 800;
   color: var(--text-primary);
-  margin-bottom: -0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
 /* Toast Notifications */
@@ -2375,7 +2460,7 @@
   }
 
   .assistant-chat-panel {
-    height: 30rem;
+    height: 32rem;
   }
 
   .reminders-split-layout {
@@ -2389,7 +2474,7 @@
   }
 
   .nav-links {
-    display: none; /* Can be handled by toggling or rendering mobile menu drawer */
+    display: none;
   }
 
   .nav-links.mobile-open {
@@ -2438,3 +2523,4 @@
     justify-content: flex-end;
   }
 }
+

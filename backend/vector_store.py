@@ -57,25 +57,70 @@ def delete_chunks_by_filename(filename: str) -> None:
     except Exception as e:
         print(f"Error deleting chunks for original filename {filename}: {e}")
 
-def search_similar_chunks(query: str, drug_name: Optional[str] = None, k: int = 4) -> List[Document]:
+def search_similar_chunks(query: str, drug_name: Optional[str] = None, k: int = 8) -> List[Dict[str, Any]]:
     """
     Performs semantic search in Chroma DB.
-    If drug_name is provided, it filters the results to only include chunks of that drug
-    (matching either the brand name or the generic name).
+    Returns a list of dicts with 'doc' (Document) and 'score' (float).
+    Supports drug name normalization, metadata filtering, and automatic fallback search.
     """
     db = get_vector_store()
     
-    # Configure search filter if drug name is specified
-    search_filter = None
-    if drug_name:
-        search_filter = {
-            "$or": [
-                {"drug_name": drug_name},
-                {"generic_name": drug_name}
-            ]
-        }
+    # 1. Normalize and detect drug name
+    target_drug = drug_name.strip() if drug_name and drug_name.strip() else None
+    
+    # If no explicit drug_name provided, try detecting from indexed drugs in query string
+    if not target_drug:
+        all_indexed = get_indexed_drugs()
+        query_lower = query.lower()
+        for d in all_indexed:
+            if d.lower() in query_lower:
+                target_drug = d
+                break
+
+    results_with_scores = []
+    
+    # 2. If target_drug is identified, attempt filtered search with normalized name variations
+    if target_drug:
+        name_variations = list(set([
+            target_drug,
+            target_drug.lower(),
+            target_drug.upper(),
+            target_drug.capitalize(),
+            target_drug.title()
+        ]))
         
-    return db.similarity_search(query, k=k, filter=search_filter)
+        # Build filter condition for ChromaDB
+        filter_conditions = []
+        for var in name_variations:
+            filter_conditions.append({"drug_name": var})
+            filter_conditions.append({"generic_name": var})
+            
+        search_filter = {"$or": filter_conditions} if len(filter_conditions) > 1 else filter_conditions[0]
+        
+        try:
+            raw_results = db.similarity_search_with_score(query, k=k, filter=search_filter)
+            for doc, score in raw_results:
+                results_with_scores.append({"doc": doc, "score": float(score)})
+        except Exception as e:
+            print(f"[VectorStore Warning] Filtered similarity search failed for '{target_drug}': {e}")
+            
+    # 3. Fallback: If no results found via filter (or no target drug), run unfiltered search
+    if not results_with_scores:
+        augmented_query = f"{target_drug} {query}" if target_drug and target_drug.lower() not in query.lower() else query
+        try:
+            raw_results = db.similarity_search_with_score(augmented_query, k=k)
+            for doc, score in raw_results:
+                # If target_drug was specified, verify chunk relevance
+                doc_drug = (doc.metadata.get("drug_name") or doc.metadata.get("generic_name") or "").lower()
+                if target_drug:
+                    if target_drug.lower() in doc_drug or target_drug.lower() in doc.page_content.lower():
+                        results_with_scores.append({"doc": doc, "score": float(score)})
+                else:
+                    results_with_scores.append({"doc": doc, "score": float(score)})
+        except Exception as e:
+            print(f"[VectorStore Error] Similarity search failed: {e}")
+
+    return results_with_scores
 
 def get_indexed_drugs() -> List[str]:
     """

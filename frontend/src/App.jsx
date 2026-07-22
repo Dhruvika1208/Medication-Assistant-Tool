@@ -1,55 +1,23 @@
-import { useState, useEffect, useRef } from "react";
-import axios from "axios";
-import { 
-  Activity, 
-  Bell, 
-  Calendar as CalendarIcon, 
-  ChevronDown, 
-  Check, 
-  Clock, 
-  ShieldAlert, 
-  ShieldCheck, 
-  Trash2, 
-  Edit, 
-  Plus, 
-  LogOut, 
-  Sun, 
-  Moon, 
-  Lock, 
-  Mail, 
-  User, 
-  Info, 
-  ArrowRight, 
-  CornerDownRight, 
-  Menu, 
-  X, 
-  ArrowUpRight, 
-  HelpCircle, 
-  Eye, 
-  EyeOff, 
-  CheckCircle2, 
-  AlertTriangle, 
-  UserCheck, 
-  Compass, 
-  LayoutDashboard,
-  MessageSquare,
-  Bookmark
-} from "lucide-react";
-import "./App.css";
-
-const API_BASE = "http://localhost:8000";
-
-const SUGGESTED_QUESTIONS = [
-  { drug: "Amoxicillin", question: "What are the common side effects of Amoxicillin?" },
-  { drug: "Metformin", question: "What warnings are associated with Metformin?" },
-  { drug: "Ibuprofen", question: "What are the contraindications for Ibuprofen?" },
-  { drug: "Acetaminophen", question: "How should Acetaminophen be stored?" },
-  { drug: "Simvastatin", question: "What drug interactions are listed for Simvastatin?" }
-];
+// Custom MediRAG minimalist capsule + AI spark brand mark
+const MediRagLogo = ({ size = 26, className = "" }) => (
+  <svg 
+    width={size} 
+    height={size} 
+    viewBox="0 0 32 32" 
+    fill="none" 
+    className={`medirag-brand-logo ${className}`}
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <rect x="4" y="10" width="20" height="12" rx="6" stroke="var(--brand-teal)" strokeWidth="2.5" fill="none" transform="rotate(-35 14 16)" />
+    <line x1="9.5" y1="7" x2="18.5" y2="23" stroke="var(--brand-teal)" strokeWidth="2" strokeDasharray="2 1" />
+    <path d="M24 3 C24 6.5 25.5 8 29 8 C25.5 8 24 9.5 24 13 C24 9.5 22.5 8 19 8 C22.5 8 24 6.5 24 3 Z" fill="var(--brand-teal)" />
+    <circle cx="27" cy="16" r="1.5" fill="var(--brand-aqua)" />
+  </svg>
+);
 
 function App() {
   // Navigation & Theme
-  const [activeTab, setActiveTab] = useState("home"); // home (landing), dashboard, assistant, reminders, profile
+  const [activeTab, setActiveTab] = useState("home"); // home, dashboard, assistant, reminders, profile
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
 
@@ -96,7 +64,7 @@ function App() {
   const [chatMessages, setChatMessages] = useState([
     {
       sender: "ai",
-      text: "Hello! I am your AI Medication Assistant. Ask me any questions about your medications (dosage, warnings, side effects, interactions) and I will retrieve official, source-grounded FDA drug label information to answer them.",
+      text: "Hello! I am MediRAG, your AI Medication Assistant. Ask me questions about your medications (side effects, dosage, warnings, interactions, storage) and I will retrieve grounded FDA drug label details to answer clearly.",
     },
   ]);
   const [loadingChat, setLoadingChat] = useState(false);
@@ -117,10 +85,11 @@ function App() {
   const [countdownText, setCountdownText] = useState("");
 
   // Toast State
-  const [toast, setToast] = useState(null); // { message, type }
+  const [toast, setToast] = useState(null);
 
-  // Ref to chat auto-scroll
+  // Ref to chat auto-scroll & fired reminders tracker
   const chatEndRef = useRef(null);
+  const firedRemindersRef = useRef(new Set());
 
   // 1. Initial Load and Theme configuration
   useEffect(() => {
@@ -163,21 +132,150 @@ function App() {
     calculateNextReminder();
     const timer = setInterval(() => {
       calculateNextReminder();
-    }, 30000); // Update every 30 seconds
+    }, 30000);
     return () => clearInterval(timer);
   }, [dateSchedule]);
+
+  // Real-time Reminder Scheduler & Notification Listener
+  useEffect(() => {
+    if (!token || !reminders || reminders.length === 0) return;
+
+    const checkSchedule = () => {
+      const todayStr = getTodayDateString();
+      const nowTimeStr = getCurrentTimeString();
+
+      reminders.forEach((r) => {
+        if (!r.is_enabled) return;
+        if (r.start_date && r.start_date > todayStr) return;
+        if (r.end_date && r.end_date < todayStr) return;
+
+        const rTimes = (r.times || "").split(",").map((t) => t.trim());
+        rTimes.forEach((t) => {
+          if (t === nowTimeStr) {
+            const key = `${todayStr}_${t}_${r.id}`;
+            if (!firedRemindersRef.current.has(key)) {
+              firedRemindersRef.current.add(key);
+
+              console.log(`[Scheduler] Due reminder detected: ${r.medicine_name} at ${t}`);
+
+              // 1. Desktop Browser Notification
+              if (typeof window !== "undefined" && Notification.permission === "granted") {
+                try {
+                  new Notification(`Medication Reminder: ${r.medicine_name}`, {
+                    body: `Time to take ${r.dosage}.\nInstructions: ${r.instructions || "Take as prescribed."}`,
+                    icon: "/favicon.svg",
+                  });
+                } catch (e) {
+                  console.error("Browser notification error:", e);
+                }
+              }
+
+              // 2. In-App Toast Notification
+              showToast(`⏰ Medication Reminder: Time to take ${r.medicine_name} (${r.dosage})`, "success");
+            }
+          }
+        });
+      });
+    };
+
+    checkSchedule();
+    const interval = setInterval(checkSchedule, 10000);
+    return () => clearInterval(interval);
+  }, [token, reminders]);
 
   // Browser Notification permissions state
   const [notificationPermission, setNotificationPermission] = useState(
     typeof window !== "undefined" ? Notification.permission : "default"
   );
 
+  const requestNotificationPermission = () => {
+    if (!("Notification" in window)) {
+      alert("This browser does not support desktop notifications.");
+      return;
+    }
+    Notification.requestPermission().then((permission) => {
+      setNotificationPermission(permission);
+      if (permission === "granted") {
+        showToast("Browser notifications enabled!");
+      } else {
+        showToast("Notification permission was denied.", "error");
+      }
+    });
+  };
+
+  const sendTestNotification = () => {
+    if (!("Notification" in window)) {
+      alert("This browser does not support desktop notifications.");
+      return;
+    }
+    if (Notification.permission !== "granted") {
+      Notification.requestPermission().then((permission) => {
+        setNotificationPermission(permission);
+        if (permission === "granted") {
+          fireTestNotification();
+        } else {
+          showToast("Please allow notification permissions in your browser.", "error");
+        }
+      });
+    } else {
+      fireTestNotification();
+    }
+  };
+
+  const fireTestNotification = () => {
+    try {
+      new Notification("MediRAG Test Reminder", {
+        body: "Notifications are working correctly.",
+        icon: "/favicon.svg",
+      });
+      showToast("Test notification sent!");
+    } catch (e) {
+      console.error("Test notification error:", e);
+      showToast("Failed to trigger browser notification.", "error");
+    }
+  };
+
+  const handleCreateTestReminder = async () => {
+    const now = new Date(Date.now() + 60000); // 1 minute from now
+    const testTime = [
+      now.getHours().toString().padStart(2, "0"),
+      now.getMinutes().toString().padStart(2, "0")
+    ].join(":");
+    const todayStr = getTodayDateString();
+
+    console.log(`==================== TEST REMINDER MODE ====================`);
+    console.log(`[Stage 1] Creating Test Reminder for 1 minute from now (${testTime})...`);
+
+    try {
+      await axios.post(`${API_BASE}/api/reminders`, {
+        medicine_name: "Test Medication",
+        dosage: "500 mg",
+        frequency: "once_daily",
+        times: [testTime],
+        start_date: todayStr,
+        end_date: null,
+        instructions: "Take with water for testing notification flow",
+        notes: "Created via Test Reminder mode"
+      });
+
+      console.log(`[Stage 2] Saved to SQLite database via backend API.`);
+      console.log(`[Stage 3] Real-time scheduler armed. Waiting for ${testTime}...`);
+
+      fetchReminders();
+      fetchDateSchedule(selectedDate);
+      showToast(`Test reminder created for ${testTime} (1 min from now). Keep tab open!`, "success");
+    } catch (err) {
+      console.error("[Test Mode Error]", err);
+      showToast("Failed to create test reminder.", "error");
+    }
+  };
+
   // Toast Notification helper
   const showToast = (message, type = "success") => {
     setToast({ message, type });
     setTimeout(() => {
       setToast(null);
-    }, 4000);
+    }, 4500);
   };
 
   // Helper date and time functions
@@ -196,11 +294,10 @@ function App() {
     return [hours.padStart(2, "0"), minutes.padStart(2, "0")].join(":");
   }
 
-  // Get weekday dates dynamically for current week
   const getWeekDates = () => {
     const current = new Date();
     const week = [];
-    const currentDay = current.getDay(); // 0 is Sun, 1 is Mon
+    const currentDay = current.getDay();
     const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
     const monday = new Date(current);
     monday.setDate(current.getDate() + distanceToMonday);
@@ -213,19 +310,15 @@ function App() {
     return week;
   };
 
-  // Fetch log records & occurrences
   const fetchDateSchedule = async (dateStr) => {
     if (!token) return;
     try {
       const todayStr = getTodayDateString();
       let queryTime = getCurrentTimeString();
       
-      // If selected date is in the past, everything not logged is missed
       if (dateStr < todayStr) {
         queryTime = "23:59";
-      } 
-      // If selected date is in the future, everything not logged is upcoming
-      else if (dateStr > todayStr) {
+      } else if (dateStr > todayStr) {
         queryTime = "00:00";
       }
 
@@ -244,7 +337,7 @@ function App() {
       const res = await axios.get(`${API_BASE}/api/reminders`);
       setReminders(res.data);
     } catch (err) {
-      console.error("Failed to fetch reminders templates:", err);
+      console.error("Failed to fetch reminders:", err);
     }
   };
 
@@ -272,14 +365,12 @@ function App() {
     }
   };
 
-  // Auth actions
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError("");
     setAuthLoading(true);
 
     if (authMode === "signup") {
-      // Validate signup
       if (authForm.password !== authForm.confirmPassword) {
         setAuthError("Passwords do not match.");
         setAuthLoading(false);
@@ -304,7 +395,6 @@ function App() {
         setAuthError(err.response?.data?.detail || "Registration failed. Try again.");
       }
     } else {
-      // Login
       try {
         const res = await axios.post(`${API_BASE}/api/auth/login`, {
           email: authForm.email,
@@ -328,7 +418,6 @@ function App() {
     setActiveTab("home");
   };
 
-  // Profile configuration updates
   const handleProfileSubmit = async (e) => {
     e.preventDefault();
     setProfileError("");
@@ -365,12 +454,10 @@ function App() {
     }
   };
 
-  // Password validation criteria
   const isPasswordValid = (pwd) => {
     return pwd.length >= 8 && /[A-Z]/.test(pwd) && /[a-z]/.test(pwd) && /[0-9]/.test(pwd);
   };
 
-  // Toggle Reminder is_enabled status
   const handleToggleReminder = async (id) => {
     try {
       await axios.put(`${API_BASE}/api/reminders/${id}/toggle`);
@@ -378,12 +465,11 @@ function App() {
       fetchDateSchedule(selectedDate);
       showToast("Medication status toggled.");
     } catch (err) {
-      console.error("Failed to toggle reminder templates:", err);
+      console.error("Failed to toggle reminder:", err);
       showToast("Error updating reminder status.", "error");
     }
   };
 
-  // Log medication occurrence (Taken / Skipped)
   const handleLogOccurrence = async (reminderId, time, status) => {
     try {
       await axios.post(`${API_BASE}/api/schedule/log`, {
@@ -400,9 +486,8 @@ function App() {
     }
   };
 
-  // Delete configuration template
   const handleDeleteReminder = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this medication reminder? This will clear all schedules.")) return;
+    if (!window.confirm("Are you sure you want to delete this medication reminder?")) return;
     try {
       await axios.delete(`${API_BASE}/api/reminders/${id}`);
       fetchReminders();
@@ -414,7 +499,6 @@ function App() {
     }
   };
 
-  // Drawer slider actions
   const openAddDrawer = (prefilled = {}) => {
     setEditingReminderId(null);
     setReminderForm({
@@ -486,7 +570,6 @@ function App() {
 
     try {
       if (editingReminderId) {
-        // Edit reminder
         await axios.put(`${API_BASE}/api/reminders/${editingReminderId}`, {
           medicine_name: reminderForm.medicine_name,
           dosage: reminderForm.dosage,
@@ -499,7 +582,6 @@ function App() {
         });
         showToast("Medication schedule updated.");
       } else {
-        // Create reminder
         await axios.post(`${API_BASE}/api/reminders`, {
           medicine_name: reminderForm.medicine_name,
           dosage: reminderForm.dosage,
@@ -521,7 +603,6 @@ function App() {
     }
   };
 
-  // Calculate adherence progress metrics
   const activeTodaySchedule = dateSchedule.filter(t => t.status !== "disabled");
   const totalToday = activeTodaySchedule.length;
   const takenToday = activeTodaySchedule.filter(t => t.status === "taken").length;
@@ -530,7 +611,6 @@ function App() {
   const upcomingToday = activeTodaySchedule.filter(t => t.status === "upcoming").length;
   const completionPercent = totalToday > 0 ? Math.round((takenToday / totalToday) * 100) : 0;
 
-  // Calculate countdown to next upcoming reminder
   const calculateNextReminder = () => {
     const todayStr = getTodayDateString();
     if (selectedDate !== todayStr) {
@@ -546,7 +626,6 @@ function App() {
       return;
     }
 
-    // Find the one closest to now
     const now = new Date();
     let minDiff = Infinity;
     let closestItem = null;
@@ -565,7 +644,6 @@ function App() {
 
     if (closestItem) {
       setNextReminder(closestItem);
-      // Format diff into text
       const hrsDiff = Math.floor(minDiff / 3600000);
       const minsDiff = Math.floor((minDiff % 3600000) / 60000);
       
@@ -581,7 +659,6 @@ function App() {
     }
   };
 
-  // Greeting based on time of day
   const getGreeting = () => {
     const hrs = new Date().getHours();
     if (hrs < 12) return "Good morning";
@@ -589,7 +666,6 @@ function App() {
     return "Good evening";
   };
 
-  // Search input change and autocomplete recommendations
   const handleDrugNameChange = (val) => {
     setDrugName(val);
     if (!val.trim()) {
@@ -610,7 +686,6 @@ function App() {
     setShowSuggestions(false);
   };
 
-  // RAG Consultation Actions
   const handleSendMessage = async (e, customDrug = null, customQuestion = null) => {
     if (e) e.preventDefault();
 
@@ -619,7 +694,6 @@ function App() {
 
     if (!activeQuestion.trim()) return;
 
-    // Build the user message bubble content
     const userMsgText = activeDrug.trim()
       ? `[Drug: ${activeDrug.trim()}] ${activeQuestion}`
       : activeQuestion;
@@ -681,7 +755,6 @@ function App() {
     setShowSuggestions(false);
   };
 
-  // Direct redirection from Quick Ask AI inside Dashboard
   const [quickSearchQuery, setQuickSearchQuery] = useState("");
   const handleQuickSearchSubmit = (e) => {
     e.preventDefault();
@@ -694,7 +767,6 @@ function App() {
     setQuickSearchQuery("");
   };
 
-  // Get user avatar initials
   const getUserInitials = () => {
     if (!user || !user.full_name) return "U";
     return user.full_name
@@ -705,23 +777,84 @@ function App() {
       .toUpperCase();
   };
 
-  // Trigger Notifications Permission setup
-  const requestNotificationPermission = () => {
-    if (!("Notification" in window)) {
-      alert("This browser does not support desktop notifications.");
-      return;
-    }
-    Notification.requestPermission().then((permission) => {
-      setNotificationPermission(permission);
+  // Helper renderer for Markdown headers, bullet points, and highlighted medical terms
+  const renderFormattedAnswer = (text) => {
+    if (!text) return null;
+    
+    const lines = text.split("\n");
+    const elements = [];
+    let listItems = [];
+    
+    const flushList = (keyPrefix) => {
+      if (listItems.length > 0) {
+        elements.push(
+          <ul key={`${keyPrefix}-list`} className="formatted-answer-ul">
+            {listItems.map((item, idx) => (
+              <li key={idx} className="formatted-answer-li">
+                <span className="bullet-dot">•</span>
+                <span>{highlightMedicalTerms(item)}</span>
+              </li>
+            ))}
+          </ul>
+        );
+        listItems = [];
+      }
+    };
+
+    lines.forEach((line, idx) => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        flushList(idx);
+        return;
+      }
+
+      if (trimmed.startsWith("### ") || trimmed.startsWith("## ") || trimmed.startsWith("# ")) {
+        flushList(idx);
+        const headingText = trimmed.replace(/^#+\s*/, "");
+        const isSerious = headingText.toLowerCase().includes("serious");
+        const isWarning = headingText.toLowerCase().includes("warning");
+        
+        elements.push(
+          <h4 key={idx} className={`formatted-heading ${isSerious ? "serious-heading" : isWarning ? "warning-heading" : "standard-heading"}`}>
+            {isSerious ? <ShieldAlert size={16} className="heading-icon text-coral" /> : 
+             isWarning ? <AlertTriangle size={16} className="heading-icon text-amber" /> : 
+             <ShieldCheck size={16} className="heading-icon text-teal" />}
+            {headingText}
+          </h4>
+        );
+      } else if (trimmed.startsWith("•") || trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+        const bulletContent = trimmed.replace(/^[•\-\*]\s*/, "");
+        listItems.push(bulletContent);
+      } else {
+        flushList(idx);
+        elements.push(
+          <p key={idx} className="formatted-answer-p">
+            {highlightMedicalTerms(trimmed)}
+          </p>
+        );
+      }
+    });
+    
+    flushList("end");
+    return <div className="formatted-answer-container">{elements}</div>;
+  };
+
+  const highlightMedicalTerms = (text) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        const sub = part.slice(2, -2);
+        return <strong key={i} className="highlighted-term">{sub}</strong>;
+      }
+      return part;
     });
   };
 
-  // Active Dropdown state
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   return (
     <div className="app-container">
-      {/* Decorative Orbs */}
+      {/* Decorative Background Orbs */}
       <div className="ambient-bg">
         <div className="ambient-orb orb-1"></div>
         <div className="ambient-orb orb-2"></div>
@@ -739,7 +872,7 @@ function App() {
       {/* Sticky Header Navbar */}
       <header className="navbar">
         <div className="nav-brand" onClick={() => setActiveTab("home")}>
-          <Activity size={28} className="brand-icon" />
+          <MediRagLogo size={28} />
           <span className="brand-name">MediRAG</span>
         </div>
 
@@ -766,9 +899,8 @@ function App() {
           )}
         </nav>
 
-        {/* Action button rows */}
+        {/* Header Actions */}
         <div className="nav-actions">
-          {/* Light/Dark Toggle */}
           <button 
             className="theme-toggle-btn" 
             onClick={() => setTheme(prev => prev === "light" ? "dark" : "light")}
@@ -809,13 +941,11 @@ function App() {
             </button>
           )}
 
-          {/* Hamburger Menu on Mobile */}
           <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
 
-        {/* Mobile menu panel */}
         {mobileMenuOpen && (
           <nav className="nav-links mobile-open">
             <button className="nav-link" onClick={() => { setActiveTab("home"); setMobileMenuOpen(false); }}>Home</button>
@@ -834,11 +964,11 @@ function App() {
         )}
       </header>
 
-      {/* Main Container Viewport */}
+      {/* Main Content Viewport */}
       <main className="main-content">
         
         {/* ============================================================== */}
-        {/* LANDING PAGE (UNAUTHENTICATED)                                 */}
+        {/* LANDING PAGE                                                   */}
         {/* ============================================================== */}
         {activeTab === "home" && (
           <div className="fade-in-up">
@@ -853,7 +983,7 @@ function App() {
                   <span className="text-teal">Your Intelligent Medication Companion</span>
                 </h1>
                 <p className="hero-subtitle">
-                  Understand your medications with AI-powered, FDA-grounded information and stay on track with personalized medication reminders.
+                  Understand your medications with AI-powered, source-grounded FDA information and stay on track with reliable medication reminders.
                 </p>
                 <div className="hero-ctas">
                   {token ? (
@@ -873,7 +1003,6 @@ function App() {
                 </div>
               </div>
 
-              {/* Animated Custom Right Hero Art */}
               <div className="hero-visual">
                 <div className="visual-container">
                   <div className="mock-card card-fda">
@@ -892,20 +1021,20 @@ function App() {
 
                   <div className="mock-card card-chat">
                     <span className="mock-badge" style={{ background: "var(--brand-mint-light)", color: "var(--brand-mint)" }}>
-                      <Activity size={12} /> Assistant
+                      <MediRagLogo size={14} /> Assistant
                     </span>
-                    <span className="mock-title">How does this interact with coffee?</span>
-                    <span className="mock-text">Retrieving safety section logs...</span>
+                    <span className="mock-title">Side effects & warnings</span>
+                    <span className="mock-text">Retrieving safety section chunks...</span>
                   </div>
                 </div>
               </div>
             </section>
 
-            {/* How MediRAG Helps Section */}
+            {/* Features Grid */}
             <section className="features-section">
               <div className="section-header">
                 <h2 className="section-title">How MediRAG Helps You</h2>
-                <p className="section-desc">We leverage direct, persistent vector indexing of official drug label registries to give you total safety control.</p>
+                <p className="section-desc">Vector indexing of official FDA drug label registries guarantees trusted, hallucination-free guidance.</p>
               </div>
 
               <div className="features-grid">
@@ -914,15 +1043,15 @@ function App() {
                     <MessageSquare size={24} />
                   </div>
                   <h3>Ask About Medicines</h3>
-                  <p>Get easy-to-understand medication information grounded in official FDA drug-label data.</p>
+                  <p>Get easy-to-understand medication answers formatted with bullet points and clear headers.</p>
                 </div>
 
                 <div className="feature-card">
                   <div className="feature-icon-wrapper">
                     <Bookmark size={24} />
                   </div>
-                  <h3>Get Reliable Sources</h3>
-                  <p>View the FDA label sections used by the AI to generate each response. Total traceability.</p>
+                  <h3>View Reliable Sources</h3>
+                  <p>Inspect exact FDA label sections and chunks used by the AI to generate each answer.</p>
                 </div>
 
                 <div className="feature-card">
@@ -930,60 +1059,7 @@ function App() {
                     <Bell size={24} />
                   </div>
                   <h3>Never Miss a Reminder</h3>
-                  <p>Create personalized medication schedules and track whether medications were taken or skipped.</p>
-                </div>
-              </div>
-            </section>
-
-            {/* How It Works visual flows */}
-            <section className="flows-container">
-              <div className="workflow-wrapper">
-                <h3 className="workflow-title">AI RAG Pipeline Workflow</h3>
-                <div className="flow-steps">
-                  <div className="flow-step">
-                    <span className="flow-step-num">1</span>
-                    <span className="flow-step-text">Ask a Question</span>
-                  </div>
-                  <ChevronDown className="flow-arrow" style={{ transform: "rotate(-90deg)" }} size={16} />
-                  <div className="flow-step">
-                    <span className="flow-step-num">2</span>
-                    <span className="flow-step-text">AI Searches FDA Database</span>
-                  </div>
-                  <ChevronDown className="flow-arrow" style={{ transform: "rotate(-90deg)" }} size={16} />
-                  <div className="flow-step">
-                    <span className="flow-step-num">3</span>
-                    <span className="flow-step-text">Relevant Sections Retrieved</span>
-                  </div>
-                  <ChevronDown className="flow-arrow" style={{ transform: "rotate(-90deg)" }} size={16} />
-                  <div className="flow-step">
-                    <span className="flow-step-num">4</span>
-                    <span className="flow-step-text">AI Generates Grounded Answer</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="workflow-wrapper">
-                <h3 className="workflow-title">Reminder Logging System</h3>
-                <div className="flow-steps">
-                  <div className="flow-step">
-                    <span className="flow-step-num">1</span>
-                    <span className="flow-step-text">Add Medication</span>
-                  </div>
-                  <ChevronDown className="flow-arrow" style={{ transform: "rotate(-90deg)" }} size={16} />
-                  <div className="flow-step">
-                    <span className="flow-step-num">2</span>
-                    <span className="flow-step-text">Choose Schedule</span>
-                  </div>
-                  <ChevronDown className="flow-arrow" style={{ transform: "rotate(-90deg)" }} size={16} />
-                  <div className="flow-step">
-                    <span className="flow-step-num">3</span>
-                    <span className="flow-step-text">Receive Reminder</span>
-                  </div>
-                  <ChevronDown className="flow-arrow" style={{ transform: "rotate(-90deg)" }} size={16} />
-                  <div className="flow-step">
-                    <span className="flow-step-num">4</span>
-                    <span className="flow-step-text">Mark Taken or Skipped</span>
-                  </div>
+                  <p>Receive desktop browser notifications and in-app alerts when medications are due.</p>
                 </div>
               </div>
             </section>
@@ -991,15 +1067,14 @@ function App() {
         )}
 
         {/* ============================================================== */}
-        {/* SPLIT-SCREEN AUTHENTICATION PAGE                               */}
+        {/* AUTHENTICATION PAGE                                            */}
         {/* ============================================================== */}
         {activeTab === "auth" && (
           <div className="auth-container fade-in-up">
-            {/* Left Column Benefit Highlights */}
             <div className="auth-left-pane">
               <div className="auth-benefits-block">
                 <div className="auth-hero-branding">
-                  <Activity className="auth-logo-icon" size={32} />
+                  <MediRagLogo size={34} />
                   <span className="auth-logo-name">MediRAG</span>
                 </div>
                 <h2 className="auth-left-heading">
@@ -1012,7 +1087,7 @@ function App() {
                     </div>
                     <div>
                       <h4 className="benefit-title">FDA label grounding</h4>
-                      <p className="benefit-desc">Answers are extracted strictly from official databases without hallucinations.</p>
+                      <p className="benefit-desc">Answers are extracted strictly from official FDA databases without hallucinations.</p>
                     </div>
                   </div>
 
@@ -1022,30 +1097,19 @@ function App() {
                     </div>
                     <div>
                       <h4 className="benefit-title">Smart reminder scheduler</h4>
-                      <p className="benefit-desc">Easily log adherence rates for any custom prescription timetables.</p>
-                    </div>
-                  </div>
-
-                  <div className="auth-benefit-item">
-                    <div className="benefit-icon-box">
-                      <UserCheck size={18} />
-                    </div>
-                    <div>
-                      <h4 className="benefit-title">Individual secure accounts</h4>
-                      <p className="benefit-desc">All RAG chat logs and scheduled reminders are password hashed and JWT protected.</p>
+                      <p className="benefit-desc">Set custom prescription timetables and receive real-time notifications.</p>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Right Column Login/Signup Card Form */}
             <div className="auth-right-pane">
               <div className="auth-form-card">
                 <div className="auth-card-header">
                   <h3 className="auth-card-title">{authMode === "login" ? "Welcome Back" : "Create Account"}</h3>
                   <p className="auth-card-desc">
-                    {authMode === "login" ? "Access your personal medication assistant" : "Register your email to configure customized alerts"}
+                    {authMode === "login" ? "Access your personal medication assistant" : "Register to track medication reminders"}
                   </p>
                 </div>
 
@@ -1116,7 +1180,6 @@ function App() {
 
                   {authMode === "signup" && (
                     <>
-                      {/* Live criteria validation checklist */}
                       <div className="password-validation-grid">
                         <div className={`validation-rule ${authForm.password.length >= 8 ? "valid" : "invalid"}`}>
                           {authForm.password.length >= 8 ? <Check size={10} /> : <Info size={10} />}
@@ -1177,32 +1240,44 @@ function App() {
         )}
 
         {/* ============================================================== */}
-        {/* USER PROFILE WORKSPACE PAGE                                    */}
+        {/* RESTRUCTURED 6-SECTION USER PROFILE WORKSPACE                  */}
         {/* ============================================================== */}
         {activeTab === "profile" && token && (
-          <div className="profile-container fade-in-up">
-            <div className="profile-card">
+          <div className="profile-container fade-in-up" style={{ maxWidth: "800px", margin: "0 auto", padding: "1rem" }}>
+            
+            {/* 1. PROFILE HEADER */}
+            <div className="profile-card profile-header-card" style={{ marginBottom: "1.5rem" }}>
               <div className="profile-avatar-large-container">
                 <div className="profile-avatar-large">{getUserInitials()}</div>
-                <h3>{user?.full_name}</h3>
-                <span className="profile-email-label">{user?.email}</span>
+                <div>
+                  <h2 style={{ fontSize: "1.5rem", fontWeight: "700" }}>{user?.full_name}</h2>
+                  <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem" }}>{user?.email}</p>
+                  <span className="badge-member-since" style={{ fontSize: "0.8rem", color: "var(--brand-teal)", background: "var(--brand-teal-light)", padding: "0.2rem 0.6rem", borderRadius: "1rem", marginTop: "0.4rem", display: "inline-block" }}>
+                    Member since: {user?.created_at ? new Date(user.created_at).toLocaleDateString() : "2026"}
+                  </span>
+                </div>
               </div>
+            </div>
 
-              {profileError && (
-                <div className="alert-error">
-                  <AlertTriangle size={16} />
-                  <span>{profileError}</span>
-                </div>
-              )}
-              {profileSuccess && (
-                <div className="toast-notification success" style={{ position: "relative", bottom: 0, left: 0, width: "100%" }}>
-                  <CheckCircle2 size={16} className="text-mint" />
-                  <span>{profileSuccess}</span>
-                </div>
-              )}
+            {profileError && (
+              <div className="alert-error" style={{ marginBottom: "1rem" }}>
+                <AlertTriangle size={16} />
+                <span>{profileError}</span>
+              </div>
+            )}
+            {profileSuccess && (
+              <div className="toast-notification success" style={{ position: "relative", bottom: 0, left: 0, width: "100%", marginBottom: "1rem" }}>
+                <CheckCircle2 size={16} className="text-mint" />
+                <span>{profileSuccess}</span>
+              </div>
+            )}
 
+            {/* 2. ACCOUNT INFORMATION & EDIT NAME */}
+            <div className="profile-card" style={{ marginBottom: "1.5rem" }}>
+              <h3 className="profile-section-title">
+                <User size={18} className="text-teal" /> Account Information
+              </h3>
               <form onSubmit={handleProfileSubmit} className="profile-form-section">
-                <h4 className="profile-section-title">Edit Details</h4>
                 <div className="form-group">
                   <label htmlFor="profileName">Full Name</label>
                   <div className="input-wrapper">
@@ -1218,7 +1293,33 @@ function App() {
                   </div>
                 </div>
 
-                <h4 className="profile-section-title">Change Password</h4>
+                <div className="form-group">
+                  <label htmlFor="profileEmail">Email Address</label>
+                  <div className="input-wrapper">
+                    <Mail className="input-icon-left" size={16} />
+                    <input
+                      id="profileEmail"
+                      type="email"
+                      className="auth-input"
+                      value={user?.email || ""}
+                      disabled
+                      style={{ opacity: 0.7, cursor: "not-allowed" }}
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" className="btn btn-primary btn-sm" style={{ width: "fit-content" }}>
+                  Update Account Details
+                </button>
+              </form>
+            </div>
+
+            {/* 3. SECURITY & PASSWORD CHANGE */}
+            <div className="profile-card" style={{ marginBottom: "1.5rem" }}>
+              <h3 className="profile-section-title">
+                <Lock size={18} className="text-teal" /> Security Settings
+              </h3>
+              <form onSubmit={handleProfileSubmit} className="profile-form-section">
                 <div className="form-group">
                   <label htmlFor="currentPassword">Current Password</label>
                   <div className="input-wrapper">
@@ -1257,36 +1358,129 @@ function App() {
                       id="confirmNewPassword"
                       type="password"
                       className="auth-input"
-                      placeholder="Confirm your password"
+                      placeholder="Confirm new password"
                       value={profileForm.confirm_new_password}
                       onChange={(e) => setProfileForm({ ...profileForm, confirm_new_password: e.target.value })}
                     />
                   </div>
                 </div>
 
-                <button type="submit" className="btn btn-primary" style={{ marginTop: "1rem" }}>
-                  Save Changes
+                <button type="submit" className="btn btn-secondary btn-sm" style={{ width: "fit-content" }}>
+                  Change Password
                 </button>
               </form>
+            </div>
+
+            {/* 4. PREFERENCES & NOTIFICATION CONTROLS */}
+            <div className="profile-card" style={{ marginBottom: "1.5rem" }}>
+              <h3 className="profile-section-title">
+                <Bell size={18} className="text-teal" /> Preferences & Notifications
+              </h3>
+              
+              <div className="preference-item-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.75rem 0", borderBottom: "1px solid var(--border-color)" }}>
+                <div>
+                  <h4 style={{ fontSize: "0.95rem", fontWeight: "600" }}>Application Theme</h4>
+                  <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Choose your preferred color theme</p>
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <button 
+                    className={`btn btn-sm ${theme === "dark" ? "btn-primary" : "btn-secondary"}`}
+                    onClick={() => setTheme("dark")}
+                  >
+                    <Moon size={14} /> Dark
+                  </button>
+                  <button 
+                    className={`btn btn-sm ${theme === "light" ? "btn-primary" : "btn-secondary"}`}
+                    onClick={() => setTheme("light")}
+                  >
+                    <Sun size={14} /> Light
+                  </button>
+                </div>
+              </div>
+
+              <div className="preference-item-row" style={{ padding: "0.75rem 0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                  <div>
+                    <h4 style={{ fontSize: "0.95rem", fontWeight: "600" }}>Browser Desktop Notifications</h4>
+                    <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+                      Status: <strong className={notificationPermission === "granted" ? "text-mint" : "text-coral"}>
+                        Notifications: {notificationPermission === "granted" ? "Enabled" : "Disabled"}
+                      </strong>
+                    </p>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    {notificationPermission !== "granted" && (
+                      <button className="btn btn-primary btn-sm" onClick={requestNotificationPermission}>
+                        Enable Notifications
+                      </button>
+                    )}
+                    <button className="btn btn-secondary btn-sm" onClick={sendTestNotification}>
+                      Send Test Notification
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ background: "var(--bg-secondary)", padding: "0.75rem", borderRadius: "0.5rem", fontSize: "0.8rem", color: "var(--text-muted)", lineHeight: "1.4" }}>
+                  <Info size={14} className="text-teal" style={{ verticalAlign: "middle", marginRight: "0.4rem" }} />
+                  <strong>Browser Limitation Note:</strong> Desktop alerts require this web application tab to remain open in your browser. Reminders will not fire if the browser is closed or if operating system Do-Not-Disturb is active.
+                </div>
+              </div>
+            </div>
+
+            {/* 5. MEDICATION ACTIVITY SUMMARY (DYNAMIC STATS) */}
+            <div className="profile-card" style={{ marginBottom: "1.5rem" }}>
+              <h3 className="profile-section-title">
+                <Activity size={18} className="text-teal" /> Medication Activity Summary
+              </h3>
+              
+              <div className="summary-stat-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem", marginTop: "0.75rem" }}>
+                <div className="stat-card-box" style={{ background: "var(--bg-secondary)", padding: "1rem", borderRadius: "0.75rem", textAlign: "center" }}>
+                  <span style={{ fontSize: "1.8rem", fontWeight: "800", color: "var(--brand-teal)", display: "block" }}>{reminders.filter(r => r.is_enabled).length}</span>
+                  <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Active Reminders</span>
+                </div>
+                <div className="stat-card-box" style={{ background: "var(--bg-secondary)", padding: "1rem", borderRadius: "0.75rem", textAlign: "center" }}>
+                  <span style={{ fontSize: "1.8rem", fontWeight: "800", color: "var(--brand-mint)", display: "block" }}>{takenToday}</span>
+                  <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Taken Today</span>
+                </div>
+                <div className="stat-card-box" style={{ background: "var(--bg-secondary)", padding: "1rem", borderRadius: "0.75rem", textAlign: "center" }}>
+                  <span style={{ fontSize: "1.8rem", fontWeight: "800", color: "var(--brand-amber)", display: "block" }}>{skippedToday}</span>
+                  <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Skipped Today</span>
+                </div>
+                <div className="stat-card-box" style={{ background: "var(--bg-secondary)", padding: "1rem", borderRadius: "0.75rem", textAlign: "center" }}>
+                  <span style={{ fontSize: "1.8rem", fontWeight: "800", color: "var(--brand-aqua)", display: "block" }}>{upcomingToday}</span>
+                  <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>Upcoming Doses</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 6. ACCOUNT ACTIONS */}
+            <div className="profile-card">
+              <h3 className="profile-section-title">
+                <LogOut size={18} className="text-coral" /> Account Actions
+              </h3>
+              <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
+                Sign out of your MediRAG account on this device.
+              </p>
+              <button className="btn btn-secondary" style={{ color: "var(--brand-coral)", borderColor: "var(--brand-coral)" }} onClick={logout}>
+                <LogOut size={16} /> Logout Account
+              </button>
             </div>
           </div>
         )}
 
         {/* ============================================================== */}
-        {/* PERSONALIZED USER DASHBOARD                                    */}
+        {/* DASHBOARD                                                      */}
         {/* ============================================================== */}
         {activeTab === "dashboard" && token && (
           <div className="fade-in-up">
-            {/* Header Greeting Bar */}
             <div className="dashboard-header-bar">
               <h2 className="dashboard-title">{getGreeting()}, {user?.full_name?.split(" ")[0]}</h2>
               <p className="dashboard-subtitle">Here's your medication overview for today.</p>
             </div>
 
             <div className="dashboard-grid">
-              {/* Left Column widgets: timeline and search */}
               <div className="dashboard-left">
-                {/* Timeline Card */}
                 <div className="timeline-card">
                   <div className="card-title-bar">
                     <h3 className="card-heading">
@@ -1347,10 +1541,9 @@ function App() {
                   )}
                 </div>
 
-                {/* Ask AI quick input card */}
                 <div className="quick-ai-card">
                   <h3 className="card-heading" style={{ fontSize: "1.15rem" }}>
-                    <Activity size={18} className="text-teal" /> Have a question about your medication?
+                    <MediRagLogo size={20} /> Have a question about your medication?
                   </h3>
                   <form onSubmit={handleQuickSearchSubmit} className="quick-ai-input-row">
                     <input
@@ -1366,9 +1559,7 @@ function App() {
                 </div>
               </div>
 
-              {/* Right Column widgets: circular progress and countdown */}
               <div className="dashboard-right">
-                {/* Circular progress card */}
                 <div className="progress-radial-card">
                   <h3 className="card-heading">Daily Adherence Progress</h3>
                   <div className="radial-progress-svg-container">
@@ -1407,7 +1598,6 @@ function App() {
                   </div>
                 </div>
 
-                {/* Highlight upcoming countdown */}
                 {nextReminder ? (
                   <div className="upcoming-highlight-card">
                     <div className="upcoming-header">
@@ -1442,14 +1632,13 @@ function App() {
         )}
 
         {/* ============================================================== */}
-        {/* AI MEDICATION ASSISTANT PANEL                                  */}
+        {/* AI MEDICATION ASSISTANT                                        */}
         {/* ============================================================== */}
         {activeTab === "assistant" && token && (
           <div className="assistant-layout-container fade-in-up">
-            {/* Sidebar consultation query forms */}
             <div className="assistant-search-sidebar">
               <h3 className="card-heading">
-                <Activity size={18} className="text-teal" /> Consult Drug Label RAG
+                <MediRagLogo size={20} /> Consult Drug Label RAG
               </h3>
               <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: "1.4" }}>
                 Select a medication name and type your specific inquiry to verify grounded FDA drug label details.
@@ -1492,7 +1681,7 @@ function App() {
                     id="query"
                     className="assistant-textarea"
                     rows={4}
-                    placeholder="e.g. What are the warnings or side effects? How should I store it?"
+                    placeholder="e.g. What are the side effects of Amoxicillin? What are the warnings or storage instructions?"
                     value={question}
                     onChange={(e) => setQuestion(e.target.value)}
                     required
@@ -1516,7 +1705,6 @@ function App() {
                 </div>
               )}
 
-              {/* Sidebar suggested list */}
               <div className="sidebar-suggestions-block">
                 <span className="sidebar-suggestions-title">Suggested RAG Inquiries</span>
                 <div className="suggestions-grid">
@@ -1533,7 +1721,7 @@ function App() {
               </div>
             </div>
 
-            {/* Right Chat feed panel */}
+            {/* Chat Feed */}
             <div className="assistant-chat-panel">
               <div className="chat-panel-header">
                 <div className="chat-panel-title">
@@ -1550,17 +1738,18 @@ function App() {
                   <div key={index} className={`chat-msg-row ${msg.sender}`}>
                     <div className="msg-bubble">
                       <div className="msg-meta-header">
-                        <User size={12} />
+                        {msg.sender === "ai" ? <MediRagLogo size={14} /> : <User size={12} />}
                         <span>{msg.sender === "ai" ? "MediRAG Assistant" : "You"}</span>
                       </div>
-                      <div>{msg.text}</div>
+                      
+                      {msg.sender === "ai" ? (
+                        renderFormattedAnswer(msg.text)
+                      ) : (
+                        <div>{msg.text}</div>
+                      )}
 
-                      {/* Prefill reminder addition btn */}
                       {msg.sender === "ai" && msg.drug && (
                         <div className="ai-actions-row">
-                          <span className="ai-action-tag">
-                            <ShieldAlert size={12} className="text-amber" /> Reminders must be manually entered or confirmed.
-                          </span>
                           <button
                             className="btn btn-secondary btn-sm"
                             style={{ width: "fit-content", padding: "0.4rem 0.8rem", fontSize: "0.85rem" }}
@@ -1571,44 +1760,36 @@ function App() {
                         </div>
                       )}
 
-                      {/* Expandable collapsible source sections */}
+                      {/* Display Sources Used directly */}
                       {msg.sender === "ai" && msg.sources && msg.sources.length > 0 && (
-                        <div className="fda-sources-accordion">
-                          <details>
-                            <summary className="sources-toggle-summary">
-                              <Info size={14} /> View Grounded Sources ({msg.sources.length})
-                            </summary>
-                            <div className="sources-accordion-content">
-                              {msg.sources.map((src, sIdx) => {
-                                const isOfficial = src.source_type === "official_fda" || 
-                                  (!src.source_type && (src.source || "").toLowerCase().includes("fda"));
-                                return (
-                                  <div key={sIdx} className="source-card-box">
-                                    <div className="source-card-badges">
-                                      <span className="source-badge drug">{src.drug_name}</span>
-                                      <span className="source-badge section">{src.section_name}</span>
-                                      {isOfficial ? (
-                                        <span className="source-badge source-type-official">FDA Official</span>
-                                      ) : (
-                                        <span className="source-badge source-type-manual">Local Document</span>
-                                      )}
-                                    </div>
-                                    <p className="source-card-excerpt">"{src.source_text}"</p>
-                                    <div className="source-card-footer">
-                                      <span>Source: {src.source}</span>
-                                      {src.original_filename && <span>File: {src.original_filename}</span>}
-                                      {src.doc_id && <span>DocID: {src.doc_id}</span>}
-                                      {src.source_url && (
-                                        <span>
-                                          URL: <a href={src.source_url} target="_blank" rel="noopener noreferrer" className="source-link-url" style={{ textDecoration: "underline", color: "var(--brand-teal)" }}>{src.source_url}</a>
-                                        </span>
-                                      )}
-                                    </div>
+                        <div className="sources-used-section" style={{ marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid var(--border-color)" }}>
+                          <h4 style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--text-secondary)", marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                            <Bookmark size={14} className="text-teal" /> Sources used ({msg.sources.length})
+                          </h4>
+                          <div className="sources-used-grid" style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                            {msg.sources.map((src, sIdx) => {
+                              const isOfficial = src.source_type === "official_fda" || 
+                                (!src.source_type && (src.source || "").toLowerCase().includes("fda"));
+                              return (
+                                <div key={sIdx} className="source-card-box" style={{ background: "var(--bg-secondary)", padding: "0.6rem 0.8rem", borderRadius: "0.5rem", border: "1px solid var(--border-color)" }}>
+                                  <div className="source-card-badges" style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", marginBottom: "0.3rem" }}>
+                                    <span className="source-badge drug" style={{ background: "var(--brand-teal-light)", color: "var(--brand-teal)", padding: "0.15rem 0.4rem", borderRadius: "0.3rem", fontSize: "0.75rem", fontWeight: "600" }}>{src.drug_name}</span>
+                                    <span className="source-badge section" style={{ background: "var(--bg-primary)", color: "var(--text-secondary)", padding: "0.15rem 0.4rem", borderRadius: "0.3rem", fontSize: "0.75rem" }}>{src.section_name}</span>
+                                    {isOfficial ? (
+                                      <span className="source-badge source-type-official" style={{ background: "var(--brand-mint-light)", color: "var(--brand-mint)", padding: "0.15rem 0.4rem", borderRadius: "0.3rem", fontSize: "0.75rem", fontWeight: "600" }}>FDA Official</span>
+                                    ) : (
+                                      <span className="source-badge source-type-manual" style={{ background: "var(--brand-aqua-light)", color: "var(--brand-aqua)", padding: "0.15rem 0.4rem", borderRadius: "0.3rem", fontSize: "0.75rem" }}>Local Document</span>
+                                    )}
                                   </div>
-                                );
-                              })}
-                            </div>
-                          </details>
+                                  <p className="source-card-excerpt" style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontStyle: "italic", margin: "0.2rem 0" }}>"{src.source_text.substring(0, 200)}..."</p>
+                                  <div className="source-card-footer" style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>
+                                    <span>Source: {src.source}</span>
+                                    {src.original_filename && <span> | File: {src.original_filename}</span>}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1618,7 +1799,7 @@ function App() {
                   <div className="chat-msg-row ai">
                     <div className="msg-bubble">
                       <div className="msg-meta-header">
-                        <User size={12} />
+                        <MediRagLogo size={14} />
                         <span>MediRAG Assistant</span>
                       </div>
                       <div className="typing-dot-loader">
@@ -1627,7 +1808,7 @@ function App() {
                         <div className="typing-dot"></div>
                       </div>
                       <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.2rem" }}>
-                        Retrieving relevant chunks from vector database and generating grounded answer...
+                        Searching FDA vector database & generating grounded answer...
                       </p>
                     </div>
                   </div>
@@ -1635,27 +1816,31 @@ function App() {
                 <div ref={chatEndRef} />
               </div>
 
-              {/* Safety notice disclaimer footer inside panel */}
               <div style={{ background: "var(--bg-secondary)", padding: "0.75rem 1.5rem", borderTop: "1px solid var(--border-color)", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-                <strong>Safety Disclaimer:</strong> MediRAG provides medication information based on available FDA drug-label data for informational purposes only. It does not provide medical diagnosis or personalized treatment advice.
+                <strong>Safety Disclaimer:</strong> MediRAG provides medication information based on official FDA drug-label data for informational purposes only. It is not a substitute for professional medical advice.
               </div>
             </div>
           </div>
         )}
 
         {/* ============================================================== */}
-        {/* CALENDAR REMINDERS PAGE                                        */}
+        {/* CALENDAR REMINDERS & TEST MODE                                 */}
         {/* ============================================================== */}
         {activeTab === "reminders" && token && (
           <div className="fade-in-up">
-            <div className="reminders-page-header">
+            <div className="reminders-page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
               <h2>Medication Timetable Scheduler</h2>
-              <button className="btn btn-primary" onClick={() => openAddDrawer()}>
-                <Plus size={18} /> Add Reminder
-              </button>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button className="btn btn-secondary" onClick={handleCreateTestReminder}>
+                  <Clock size={16} /> Test Reminder (1 Min)
+                </button>
+                <button className="btn btn-primary" onClick={() => openAddDrawer()}>
+                  <Plus size={18} /> Add Reminder
+                </button>
+              </div>
             </div>
 
-            {/* Weekly Selector Card */}
+            {/* Weekly Selector */}
             <div className="calendar-selector-card">
               <div className="calendar-meta-stats">
                 <span className="calendar-date-title">
@@ -1692,9 +1877,7 @@ function App() {
               </div>
             </div>
 
-            {/* Split layout: Today occurrence logs, Configured templates list */}
             <div className="reminders-split-layout">
-              {/* Left Column occurrences schedule list */}
               <div className="reminders-list-column">
                 <div className="column-header-box">
                   <h3 className="column-title">Scheduled Doses ({selectedDate})</h3>
@@ -1750,7 +1933,6 @@ function App() {
                 )}
               </div>
 
-              {/* Right Column configuration list */}
               <div className="reminders-list-column">
                 <div className="column-header-box">
                   <h3 className="column-title">Reminder Profiles</h3>
@@ -1759,7 +1941,7 @@ function App() {
 
                 {reminders.length === 0 ? (
                   <div className="empty-state-card">
-                    <Activity className="empty-state-icon" />
+                    <MediRagLogo className="empty-state-icon" size={32} />
                     <p>No configured medication templates.</p>
                   </div>
                 ) : (
@@ -1805,11 +1987,6 @@ function App() {
                               <span>Instructions: {reminder.instructions}</span>
                             </div>
                           )}
-                          {reminder.notes && (
-                            <div className="config-body-item-full" style={{ fontStyle: "italic", fontSize: "0.8rem", color: "var(--text-muted)" }}>
-                              <span>Note: {reminder.notes}</span>
-                            </div>
-                          )}
                         </div>
 
                         <div className="config-card-actions">
@@ -1827,7 +2004,6 @@ function App() {
               </div>
             </div>
             
-            {/* Floating add button */}
             <button className="btn-floating-add" onClick={() => openAddDrawer()} aria-label="Add Reminder">
               <Plus size={24} />
             </button>
@@ -1835,9 +2011,7 @@ function App() {
         )}
       </main>
 
-      {/* ============================================================== */}
-      {/* SLIDE-OUT SCHEDULER DRAWER MODAL                               */}
-      {/* ============================================================== */}
+      {/* Scheduler Drawer Modal */}
       {showDrawer && (
         <div className="slide-drawer-overlay" onClick={() => setShowDrawer(false)}>
           <div className="slide-drawer" onClick={(e) => e.stopPropagation()}>
@@ -1894,7 +2068,6 @@ function App() {
                   </select>
                 </div>
 
-                {/* Times scheduler checklist list */}
                 <div className="form-group">
                   <label>Reminder Time(s)</label>
                   <div className="custom-times-list">
@@ -1976,15 +2149,10 @@ function App() {
                     id="notes-input"
                     className="assistant-textarea"
                     rows={2}
-                    placeholder="e.g. Prescribed by cardiologist"
+                    placeholder="e.g. Prescribed by physician"
                     value={reminderForm.notes}
                     onChange={(e) => handleFormChange("notes", e.target.value)}
                   />
-                </div>
-
-                <div style={{ display: "flex", gap: "0.5rem", background: "var(--brand-teal-light)", padding: "0.75rem", borderRadius: "0.6rem", fontSize: "0.8rem", color: "var(--text-primary)" }}>
-                  <ShieldCheck size={16} className="text-teal" style={{ flexShrink: 0 }} />
-                  <span>Schedules should correspond exactly to instructions provided by your doctor or pharmacist.</span>
                 </div>
 
                 <div className="drawer-footer">
@@ -2001,12 +2169,12 @@ function App() {
         </div>
       )}
 
-      {/* Global professional Footer */}
+      {/* Global Footer */}
       <footer className="footer">
         <div className="footer-content">
           <div className="footer-info">
             <div className="footer-logo">
-              <Activity className="footer-logo-icon" size={20} />
+              <MediRagLogo size={22} />
               <span>MediRAG</span>
             </div>
             <p className="footer-desc">
@@ -2018,19 +2186,17 @@ function App() {
             <span className="footer-group-title">Platform</span>
             <a href="#about" className="footer-link" onClick={() => setActiveTab("home")}>About Us</a>
             <a href="#features" className="footer-link" onClick={() => setActiveTab("home")}>Features</a>
-            <a href="#workflow" className="footer-link" onClick={() => setActiveTab("home")}>How it Works</a>
           </div>
 
           <div className="footer-links-group">
             <span className="footer-group-title">Legal & Resources</span>
             <a href="#privacy" className="footer-link" onClick={() => alert("MediRAG values your privacy. Your data remains stored locally in SQLite and is fully JWT encrypted.")}>Privacy Policy</a>
             <a href="#disclaimer" className="footer-link" onClick={() => alert("MediRAG is designed purely for information. It is not an alternative to licensed clinical care.")}>Medical Disclaimer</a>
-            <a href="#github" className="footer-link" onClick={() => window.open("https://github.com", "_blank")}>GitHub Repository</a>
           </div>
         </div>
 
         <div className="footer-bottom">
-          <p>&copy; {new Date().getFullYear()} MediRAG – AI-Powered Medication Assistant. Built under strict grounding guardrails.</p>
+          <p>&copy; {new Date().getFullYear()} MediRAG – AI-Powered Medication Assistant.</p>
         </div>
       </footer>
     </div>
@@ -2038,3 +2204,4 @@ function App() {
 }
 
 export default App;
+
