@@ -29,7 +29,7 @@ MediRAG is a clinical-grade, full-stack Medication Information Assistant that le
                       | openFDA API  |  | Grounded Response     |
                       | Drug Labels  |  | + Structured Sources  |
                       +--------------+  +-----------------------+
-```
+`
 
 ---
 
