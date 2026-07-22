@@ -8,6 +8,8 @@ MediRAG is a clinical-grade, full-stack Medication Information Assistant that le
 
 ```
 
+
+
                       +-----------------------------+
                       |     React Vite Frontend     |
                       +--------------+--------------+
