@@ -173,4 +173,8 @@ python accuracy/evaluate_accuracy.py
 2. **Browser Push Limits**: Desktop notifications require the React application tab to remain open in the browser. If the tab or browser is closed, JavaScript timers stop, and alerts will not fire.
 
 ---
+## Medical Disclaimer
+
+> [!WARNING]
+> This application provides medication information from FDA drug-label data for informational purposes only. It is not a substitute for professional medical advice, diagnosis, or treatment. Always consult a qualified healthcare provider for individualized medical guidance.
 
